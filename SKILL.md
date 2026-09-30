@@ -1,6 +1,6 @@
 ---
-name: trip-planner
-description: Plan trips and build day-by-day travel itineraries, delivered as one polished, standalone HTML page. Use this skill PROACTIVELY for any travel-planning request — trigger on "帮我规划行程 / 旅游攻略 / X日游 / 安排去XX玩 / 做旅行计划 / 行程安排 / 帮我排个行程", on "plan a trip / make an itinerary / X-day trip to a city / things to do in a place", and whenever the user gives a destination plus dates or a duration (e.g. "6月去东京玩5天", "国庆想去成都4天", "trip to Kyoto next month", "下周末杭州两日游"). Always gather requirements first (never jump straight to an itinerary), research transport/weather/opening-hours via web search (query-only — it never books or pays), then output ONE self-contained HTML file with an embedded Leaflet + OpenStreetMap map, per-day timeline cards, transport-segment cards, a budget table, a pre-departure checklist, collapsible sections, hierarchical navigation, scroll-memory, and 注意/必订/避雷 callouts. Do NOT use for academic study notes (use study-notes) or generic business reports (use visual-report).
+name: travel-planner
+description: Create, audit, revise, and dynamically adapt travel itineraries. Use for new trip planning, existing itinerary/PDF/HTML/Markdown review, adding or replacing recommended places, checking a suggestion's distance from the current hotel or adjacent stops, comparing original vs candidate plans before changing anything, weather-aware replanning, clothing and packing advice, and same-day travel adjustments. Trigger on "旅游攻略 / 行程规划 / 修改行程 / 加个景点 / 朋友推荐了XX / 离酒店多远 / 适合放哪天 / 天气变了怎么调 / 穿什么 / 带什么衣服" and equivalent travel-planning requests. Preserve confirmed bookings and hard deadlines by default; research current facts before using specific dynamic values; never book, pay, or silently modify an existing itinerary.
 ---
 
 # Trip Planner Skill
@@ -14,11 +14,13 @@ memory), retargeted to travel and documented in **`references/design-system.md`*
 **Audience assumption**: the reader is the traveler. Write so they can follow the plan on their phone
 during the trip — concrete times, addresses, prices, "how to get there", and what to do if it rains.
 
-**Environment (Windows / Claude Code).** There is **no** `places_search`, `places_map_display_v0`, or
-`weather_fetch` tool here. Do research with **`web_search`**; render the map by embedding
-**Leaflet + OpenStreetMap** in the output HTML (OSM tiles need no API key). For requirements
-gathering use the **`AskUserQuestion`** structured-question tool if available, otherwise ask in plain
-text — batched by dependency layer, each question carrying a recommended answer (see Step 1).
+**Environment / capability gate.** Detect available host tools before choosing a geography source.
+For mainland-China POI resolution, coordinates, distance matrix, and route time, **prefer a connected
+高德/AMap MCP when it exposes the needed capability**; it is valid evidence for concrete distance/time
+when queried in the current session. If unavailable, use `scripts/tencent_lbs.py`; then browser/map
+research; if none succeeds, keep the value `unknown` rather than estimating. For general facts use
+the available web/browser search. Render the map with **Leaflet + OpenStreetMap** in the output HTML.
+For requirements gathering use `AskUserQuestion` if available, otherwise ask in plain text.
 
 **Browser scraping — read the DOM with `javascript_tool`, don't screenshot-and-eyeball.** 查机票/酒店价、
 携程/高德评论时，**优先用 `javascript_tool` 抓 DOM 取结构化 JSON**（省 token，且绕开高德 canvas 截图报错——
@@ -29,6 +31,39 @@ text — batched by dependency layer, each question carrying a recommended answe
 
 **Output path.** Write the final HTML to the current working directory (or a directory the user
 names). Filename: `<目的地><N>日游行程.html` (e.g. `东京5日游行程.html`).
+
+---
+
+## Operating modes — create, evaluate, revise, adapt
+
+First classify the request. Do **not** force every request through the new-trip interview.
+
+1. **CREATE** — build a new trip from scratch. Use the existing six-step planning workflow.
+2. **IMPORT / AUDIT** — read an existing itinerary from PDF, HTML, Markdown, DOCX, pasted text, or a previously generated plan. Extract trip state, confirmed bookings, hard deadlines, derived availability windows, daily route, optional items, and unresolved assumptions before proposing changes. Treat explicit imported facts as known state: do not ask for them again or invent an alternative unless the source is internally inconsistent.
+3. **CANDIDATE EVALUATION** — the user gives a new recommendation ("朋友推荐 XX"). Research it and produce a decision card **without changing the itinerary**. Compare:
+   - hotel → candidate distance/time;
+   - previous stop → candidate → next stop detour;
+   - opening/booking constraints;
+   - weather fit and outdoor sensitivity;
+   - incremental time/cost/physical load;
+   - impact on hard deadlines and buffers;
+   - best insertion day(s), replacement target(s), and "do not insert" cases.
+4. **REVISE** — only after the user explicitly accepts a proposal, modify the smallest affected scope. Prefer one-day/local edits; preserve unrelated days.
+5. **ADAPT NOW** — for same-day or in-trip changes, rebuild from current state: completed activities, actual location/starting point, active bookings, earliest realistic departure, luggage, fatigue, weather and transport conditions.
+
+For IMPORT / CANDIDATE EVALUATION / REVISE / ADAPT NOW, read **`references/trip-state-and-change.md`**.
+For weather/activity decisions, clothing, and packing, read **`references/weather-clothing.md`**.
+
+### Change-control rule
+
+**Analysis and mutation are separate operations.** When the user asks "看看值不值得去 / 离酒店多远 / 放哪天合适", default to analysis only. Never rewrite the itinerary until the user says an explicit equivalent of "接受 / 加进去 / 换掉 / 调到 Day N / 按方案 B 修改".
+
+When revising:
+- lock confirmed air/rail/ferry bookings, hotel nights, ticketed reservations, fixed appointments, and explicit latest-departure/check-in deadlines unless the user explicitly unlocks them;
+- preserve safety buffers around airports, stations, ferry terminals, timed entries, and long intercity transfers;
+- re-verify every changed route leg and every dynamic fact affected by the edit;
+- produce a compact change log: **changed / unchanged / reason / newly introduced risk**;
+- do not re-plan the whole trip merely to make the output look cleaner.
 
 ---
 
@@ -68,10 +103,10 @@ names). Filename: `<目的地><N>日游行程.html` (e.g. `东京5日游行程.h
 | 门票¥/营业时间/地址 | `exa_facts.py verify` 读到的**官方页原文**（标 `Exa 实查 日期` + 来源 URL），或浏览器实查值 | 官方页读不到就标「以官网为准」（**禁止**编逐项联票价并做"单买超¥X"的派生算术；**禁止**把聚合站/`answer` 的说法当官方值） |
 | 车次号/分钟级时刻/票价 | 实查值+「以12306为准」 | 不写具体车次号与到发分钟，只写「高铁直达约 Nh · 班次票价以12306实时为准」 |
 | 预约配额/放号时刻 | 官方页原文里**明写**的配额/预订窗口（如实测到的「限流 8.5万人次/日」「提前 14 日预订」），标 `Exa 实查 日期` + URL | 「名额有限 · 配额与放号以官方公众号当日为准」（**禁止**编"每日2000人/8:00放号"） |
-| 打车¥/分钟/里程 | `tencent_lbs.py route` 值+「腾讯位置服务 API 实查 日期」，或高德路线规划值+「（高德实测）」 | 「打车可达 · 费用时长以高德为准」（短步行腿 ≤2km 可按 70–80 m/min 估距离+步行 min，但一旦出现¥或"打车"就必须高德来源；**禁止**"步行或打车 N min"这种混写偷渡打车分钟） |
+| 打车¥/分钟/里程 | 当前会话高德/AMap MCP 路线值+「高德 MCP 实查 YYYY-MM-DD」，或 `tencent_lbs.py route` 值+「腾讯位置服务 API 实查 YYYY-MM-DD」，或浏览器高德路线规划值+「高德实测」 | 「打车可达 · 费用时长以高德为准」（短步行腿 ≤2km 可按 70–80 m/min 估距离+步行 min，但一旦出现¥或"打车"就必须高德来源；**禁止**"步行或打车 N min"这种混写偷渡打车分钟） |
 | 步数 | 由实测里程换算（≈1,300 步/km） | 不标具体步数 |
 | 天气（>14 天外） | —— | 「X月气候典型 约A°/B°（非当日预报，出行前再查）」，**不得对多日复制同一具体温度串当各日预报** |
-| 地图坐标 | `tencent_lbs.py geocode` 判定 high 的结果（已转 WGS-84） | 脚本报 `no_relevant_match`、或没配 Key 且查不到 → 降到城区级并注明近似，**禁止**编 4 位小数坐标 |
+| 地图坐标 | 当前会话高德/AMap MCP 返回并明确其坐标系的结果，或 `tencent_lbs.py geocode` 判定 high 的结果（脚本输出 WGS-84） | 工具无法解析/相关性不足时 → 降到城区级并注明近似，**禁止**编 4 位小数坐标；写入 Leaflet/OSM 前必须转换为 WGS-84 |
 | 预算派生 | 各项来自上面的实查/估价 | 不得把编造的单价滚成"精确"日小计/总计；header 总价与预算表必须一致 |
 
 **逃生门（"你直接安排就行"）只放宽提问，不放宽这条契约**：缺的偏好按推荐值填、写进顶部假设 callout；
@@ -105,14 +140,23 @@ The six steps below are mandatory and **in order**. Do not skip Step 1.
 复制下面这张清单到你的回复里，边做边勾（复杂行程尤其要这样跟踪进度）：
 
 ```
-行程进度：
+行程进度（CREATE 模式）：
 - [ ] Step 1 · 需求采集（grill 问透；回读确认才进下一步）
 - [ ] Step 2 · 机票/火车票查询（机票浏览器实查比价，只读不订）
 - [ ] Step 3 · 天气 + 逐点真实数据（**门票/开放时间/预约先跑 `exa_facts.py verify` 读官方原文**；小红书避坑）
-- [ ] Step 3.5 · **坐标 + 车程实查**（默认跑 `scripts/tencent_lbs.py`；没配 Key 才退回浏览器逐段点）
+- [ ] Step 3.5 · **坐标 + 车程实查**（有高德/AMap MCP 则优先；否则跑 `scripts/tencent_lbs.py`；再不行才退回浏览器/unknown）
 - [ ] Step 4 · 行程编排（地理聚类、时间预算、通勤连接、体力曲线）
 - [ ] Step 5 · 住宿备选 ≥3（价格携程+飞猪、评论携程+高德，浏览器实查）
 - [ ] Step 6 · 输出 HTML + 跑 check_html.py 至通过
+
+变更进度（IMPORT / EVALUATE / REVISE / ADAPT 模式）：
+- [ ] A · 导入现有行程并建立 trip state
+- [ ] B · 标记 hard / soft / optional constraints
+- [ ] C · 新建议/变更项做 POI、距离、路线、营业、天气实查
+- [ ] D · 计算绕路、时间窗、预算、体力和 hard-deadline 影响
+- [ ] E · 先输出原方案 vs 候选方案，等待用户决策
+- [ ] F · 用户确认后局部修改 + 回归校验 + change log
+- [ ] G · 更新天气穿衣和 packing（如受影响）
 ```
 
 ---
@@ -520,7 +564,7 @@ The full spec is in `references/design-system.md`. In brief, what changed from s
   当动词）。
 - **输出标签是受控固定串，不许改写或换近义词**（`check_html.py` 和示例 HTML 依赖它们）：
   正向来源标记 `实查于 YYYY-MM-DD` / `浏览器实读点评区` / `浏览器实查…日期` / `高德实测` /
-  `腾讯位置服务 API 实查 YYYY-MM-DD`（坐标/车程/公交票价专用，脚本自动带出）/
+  `高德 MCP 实查 YYYY-MM-DD`（当前会话 MCP 的 POI/路线/矩阵数据）/ `腾讯位置服务 API 实查 YYYY-MM-DD`（坐标/车程/公交票价专用，脚本自动带出）/
   `Exa 实查 YYYY-MM-DD`（官方页门票/开放时间/预约专用，**必须同时给来源 URL**）/
   `百度地图 YYYY-MM-DD 实查`（自驾里程车程专用）/ `以12306为准`；
   未查到的 hedge `以官网为准` / `评分以 App 为准` / `web_search · 未浏览器核实` 等；
