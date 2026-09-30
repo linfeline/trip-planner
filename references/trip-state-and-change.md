@@ -4,7 +4,7 @@ Use this reference for importing, auditing, evaluating, revising, or adapting an
 
 ## 1. Build trip state before editing
 
-Extract the current plan into five layers:
+Extract the current plan into six layers:
 
 | Layer | Examples | Default edit policy |
 |---|---|---|
