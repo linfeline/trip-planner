@@ -1,5 +1,5 @@
 {
-  "skill_name": "trip-planner",
+  "skill_name": "travel-planner",
   "evals": [
     {
       "id": 0,
@@ -21,6 +21,33 @@
       "prompt": "Plan a 5-day Tokyo itinerary for the two of us in early July, flying from Shanghai. We love food and anime (Akihabara), want one day-trip outside the city, mid-range budget, and don't mind a packed schedule.",
       "expected_output": "Tokyo 5-day standalone HTML itinerary in response to English input: confirms the few missing prefs first, then themed hero + Leaflet map + per-day POI timeline clustered by district (Akihabara/食 day, one out-of-city day-trip e.g. 镰仓/日光/箱根) + transport-segment card fitting the SHA→NRT/HND flight to Day 1 and the return to Day 5 with realistic airport buffers + .price-compare for flights (browser-verified incl 携程/飞猪/航司官网, cheapest tagged) + budget table + checklist. Packed-but-honest time budgets; 住宿备选≥3 .hotel cards (携程+飞猪 price, 携程+高德 reviews); obeys 数据诚信契约 — no fabricated hours/prices/ratings, hedge when not browser-verified.",
       "files": []
+    },
+    {
+      "id": 3,
+      "name": "existing-itinerary-candidate-evaluation",
+      "prompt": "我已经有一份6天大连烟台行程PDF。朋友推荐我去一个新的海边咖啡馆。先帮我确认它离我当天酒店和前后景点有多远、插入哪一天绕路最少、会不会影响赶船/赶飞机；先不要改行程。",
+      "expected_output": "触发 IMPORT/AUDIT + CANDIDATE EVALUATION；读取既有行程并建立 hard/soft/optional trip state；锁定已确认航班/轮渡/酒店和赶船赶机 deadline；解析候选POI exact branch；比较酒店→候选以及前一站→候选→后一站相对原路线的增量绕路；核验营业/预约/天气敏感性；输出原方案 vs 候选方案决策卡。不得在用户确认前修改任何 Day。",
+      "files": [
+        "existing itinerary PDF"
+      ]
+    },
+    {
+      "id": 4,
+      "name": "accepted-local-revision",
+      "prompt": "刚才那个建议我接受，放到 Day3。其他天都不要动。",
+      "expected_output": "触发 REVISE；仅修改受影响的 Day3；保留其他日期、全部已确认预订和 hard deadlines；重新核验 Day3 所有受影响路线、开放时间和天气依赖；输出 changed/unchanged/reason/new risk change log，并明确未变化的 hard anchors。",
+      "files": [
+        "prior itinerary state"
+      ]
+    },
+    {
+      "id": 5,
+      "name": "weather-clothing-replan",
+      "prompt": "出发前两天发现海边两天风很大还有雨，帮我看看哪些户外安排要换，顺便告诉我每天穿什么和6天总共带几件衣服。",
+      "expected_output": "触发 ADAPT/天气穿衣流程；按 weather × attraction sensitivity 分析海边/轮渡甲板/山顶等暴露活动，优先保护航班/轮渡/酒店等 hard anchors，用低天气敏感活动做 Plan B；逐日给 base/outer/bottoms/footwear/weather accessory + activity-specific reason；最后去重汇总 packing 数量。具体天气值只在实查后写，不得把历史气候当短期预报。",
+      "files": [
+        "existing itinerary"
+      ]
     }
   ],
   "trigger_tests": [
@@ -53,6 +80,21 @@
       "prompt": "帮我写个 Python 脚本批量重命名文件夹里的图片",
       "should_trigger": false,
       "reason": "与出行完全无关，不得过触发"
+    },
+    {
+      "prompt": "朋友推荐了个地方，先看看离我酒店多远、适不适合塞进现有行程，别先改",
+      "should_trigger": true,
+      "reason": "既有行程的候选POI距离与变更影响分析"
+    },
+    {
+      "prompt": "明天暴雨，把我后两天行程调整一下，再告诉我怎么穿",
+      "should_trigger": true,
+      "reason": "旅途中天气驱动的动态改期与穿衣"
+    },
+    {
+      "prompt": "这件冲锋衣买哪个颜色好看",
+      "should_trigger": false,
+      "reason": "单纯服装购物，不是旅行计划/天气穿衣"
     }
   ]
 }
