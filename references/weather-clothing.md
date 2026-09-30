@@ -4,7 +4,7 @@ Use this reference when weather, outdoor conditions, clothing, or packing can af
 
 ## 1. Weather must be activity-specific
 
-Do not attach one city forecast to the whole day. Classify each important activity:
+Do not attach one city forecast to the whole day. **Verify venue exposure before classifying it**; do not assume a waterfront district, "water city", mall-adjacent attraction, or named complex is sheltered/indoor merely from its name. Classify each important activity:
 - high visibility sensitivity: viewpoint, mountain panorama, skyline, sunrise/sunset;
 - exposed outdoor: beach, ferry deck, island, ridge, waterfront;
 - ordinary outdoor: city walk, market, park;
