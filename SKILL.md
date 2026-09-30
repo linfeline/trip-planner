@@ -1,6 +1,6 @@
 ---
-name: trip-planner
-description: Plan trips and build day-by-day travel itineraries, delivered as one polished, standalone HTML page. Use this skill PROACTIVELY for any travel-planning request — trigger on "帮我规划行程 / 旅游攻略 / X日游 / 安排去XX玩 / 做旅行计划 / 行程安排 / 帮我排个行程", on "plan a trip / make an itinerary / X-day trip to a city / things to do in a place", and whenever the user gives a destination plus dates or a duration (e.g. "6月去东京玩5天", "国庆想去成都4天", "trip to Kyoto next month", "下周末杭州两日游"). Always gather requirements first (never jump straight to an itinerary), research transport/weather/opening-hours via web search (query-only — it never books or pays), then output ONE self-contained HTML file with an embedded Leaflet + OpenStreetMap map, per-day timeline cards, transport-segment cards, a budget table, a pre-departure checklist, collapsible sections, hierarchical navigation, scroll-memory, and 注意/必订/避雷 callouts. Do NOT use for academic study notes (use study-notes) or generic business reports (use visual-report).
+name: travel-planner
+description: Create, audit, revise, and dynamically adapt travel itineraries. Use for new trip planning, existing itinerary/PDF/HTML/Markdown review, adding or replacing recommended places, checking a suggestion's distance from the current hotel or adjacent stops, comparing original vs candidate plans before changing anything, weather-aware replanning, clothing and packing advice, and same-day travel adjustments. Trigger on "旅游攻略 / 行程规划 / 修改行程 / 加个景点 / 朋友推荐了XX / 离酒店多远 / 适合放哪天 / 天气变了怎么调 / 穿什么 / 带什么衣服" and equivalent travel-planning requests. Preserve confirmed bookings and hard deadlines by default; research current facts before using specific dynamic values; never book, pay, or silently modify an existing itinerary.
 ---
 
 # Trip Planner Skill
@@ -29,6 +29,39 @@ text — batched by dependency layer, each question carrying a recommended answe
 
 **Output path.** Write the final HTML to the current working directory (or a directory the user
 names). Filename: `<目的地><N>日游行程.html` (e.g. `东京5日游行程.html`).
+
+---
+
+## Operating modes — create, evaluate, revise, adapt
+
+First classify the request. Do **not** force every request through the new-trip interview.
+
+1. **CREATE** — build a new trip from scratch. Use the existing six-step planning workflow.
+2. **IMPORT / AUDIT** — read an existing itinerary from PDF, HTML, Markdown, DOCX, pasted text, or a previously generated plan. Extract trip state, confirmed bookings, hard deadlines, daily route, optional items, and unresolved assumptions before proposing changes.
+3. **CANDIDATE EVALUATION** — the user gives a new recommendation ("朋友推荐 XX"). Research it and produce a decision card **without changing the itinerary**. Compare:
+   - hotel → candidate distance/time;
+   - previous stop → candidate → next stop detour;
+   - opening/booking constraints;
+   - weather fit and outdoor sensitivity;
+   - incremental time/cost/physical load;
+   - impact on hard deadlines and buffers;
+   - best insertion day(s), replacement target(s), and "do not insert" cases.
+4. **REVISE** — only after the user explicitly accepts a proposal, modify the smallest affected scope. Prefer one-day/local edits; preserve unrelated days.
+5. **ADAPT NOW** — for same-day or in-trip changes, rebuild from current state: completed activities, actual location/starting point, active bookings, earliest realistic departure, luggage, fatigue, weather and transport conditions.
+
+For IMPORT / CANDIDATE EVALUATION / REVISE / ADAPT NOW, read **`references/trip-state-and-change.md`**.
+For weather/activity decisions, clothing, and packing, read **`references/weather-clothing.md`**.
+
+### Change-control rule
+
+**Analysis and mutation are separate operations.** When the user asks "看看值不值得去 / 离酒店多远 / 放哪天合适", default to analysis only. Never rewrite the itinerary until the user says an explicit equivalent of "接受 / 加进去 / 换掉 / 调到 Day N / 按方案 B 修改".
+
+When revising:
+- lock confirmed air/rail/ferry bookings, hotel nights, ticketed reservations, fixed appointments, and explicit latest-departure/check-in deadlines unless the user explicitly unlocks them;
+- preserve safety buffers around airports, stations, ferry terminals, timed entries, and long intercity transfers;
+- re-verify every changed route leg and every dynamic fact affected by the edit;
+- produce a compact change log: **changed / unchanged / reason / newly introduced risk**;
+- do not re-plan the whole trip merely to make the output look cleaner.
 
 ---
 
@@ -105,7 +138,7 @@ The six steps below are mandatory and **in order**. Do not skip Step 1.
 复制下面这张清单到你的回复里，边做边勾（复杂行程尤其要这样跟踪进度）：
 
 ```
-行程进度：
+行程进度（CREATE 模式）：
 - [ ] Step 1 · 需求采集（grill 问透；回读确认才进下一步）
 - [ ] Step 2 · 机票/火车票查询（机票浏览器实查比价，只读不订）
 - [ ] Step 3 · 天气 + 逐点真实数据（**门票/开放时间/预约先跑 `exa_facts.py verify` 读官方原文**；小红书避坑）
@@ -113,6 +146,15 @@ The six steps below are mandatory and **in order**. Do not skip Step 1.
 - [ ] Step 4 · 行程编排（地理聚类、时间预算、通勤连接、体力曲线）
 - [ ] Step 5 · 住宿备选 ≥3（价格携程+飞猪、评论携程+高德，浏览器实查）
 - [ ] Step 6 · 输出 HTML + 跑 check_html.py 至通过
+
+变更进度（IMPORT / EVALUATE / REVISE / ADAPT 模式）：
+- [ ] A · 导入现有行程并建立 trip state
+- [ ] B · 标记 hard / soft / optional constraints
+- [ ] C · 新建议/变更项做 POI、距离、路线、营业、天气实查
+- [ ] D · 计算绕路、时间窗、预算、体力和 hard-deadline 影响
+- [ ] E · 先输出原方案 vs 候选方案，等待用户决策
+- [ ] F · 用户确认后局部修改 + 回归校验 + change log
+- [ ] G · 更新天气穿衣和 packing（如受影响）
 ```
 
 ---
