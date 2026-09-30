@@ -10,6 +10,7 @@ Extract the current plan into five layers:
 |---|---|---|
 | Hard booking | flights, trains, ferry, prepaid hotel nights, timed tickets | locked |
 | Hard deadline | latest hotel departure, check-in cutoff, boarding cutoff, airport arrival target | locked |
+| Derived availability | city-presence window implied by arrival/departure, hotel stay window, post-ferry city change | derived from hard facts; exclude impossible candidate days |
 | Soft anchor | preferred restaurant, sunset viewpoint, market in the morning | movable with reason |
 | Optional item | backup museum, snack stop, casual shopping | freely replaceable |
 | Assumption | estimated traffic, historical climate, unverified opening hours | re-verify if decision-critical |
@@ -17,6 +18,14 @@ Extract the current plan into five layers:
 For each day record: start/end lodging, fixed times, ordered stops, transport legs, meals, outdoor exposure, known buffers, and optional alternatives.
 
 Do not silently turn a user-provided fact into a researched fact. Preserve provenance: **user-confirmed / source-verified / estimated / unknown**.
+
+**Imported known facts are authoritative for planning state.** If the itinerary already says the traveler arrives at 23:55, do not later treat that day as a daytime candidate or ask the arrival time again. Ask only when sources conflict or a material field is genuinely absent.
+
+Before ranking candidate days, pre-filter them:
+1. remove days outside the destination/city-presence window;
+2. remove time windows already consumed by hard bookings/deadlines and protected transfer buffers;
+3. remove impossible opening-day/time combinations once verified;
+4. only then compare geography, detour, weather fit, cost, and experience value.
 
 ## 2. Candidate suggestion workflow
 
@@ -32,6 +41,16 @@ Research, when relevant:
 - transport/parking/last-mile friction;
 - current reviews or temporary closure information if material.
 
+### Geography evidence priority
+
+For mainland-China route/distance questions:
+1. if the host exposes a connected **高德/AMap MCP** with POI and route/matrix capabilities, use it first;
+2. otherwise use `scripts/tencent_lbs.py`;
+3. otherwise use a map browser/search;
+4. if no source succeeds, report `unknown` and name the missing check.
+
+Use a distance matrix for coarse day/cluster screening when available, then route planning for the final candidate leg. Do not convert straight-line distance into driving time.
+
 Distance from lodging alone is insufficient. The real insertion cost is normally:
 **previous stop → candidate → next stop minus previous stop → next stop**.
 
@@ -46,7 +65,7 @@ Return a compact comparison containing:
 - best insertion day(s);
 - what must move or be dropped;
 - hard constraint impact;
-- weather fit;
+- weather fit, only after the venue exposure type (outdoor/indoor/mixed/covered) is verified rather than guessed from its name;
 - cost/booking impact;
 - physical load;
 - evidence gaps;
