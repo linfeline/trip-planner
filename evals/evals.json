@@ -48,6 +48,15 @@
       "files": [
         "existing itinerary"
       ]
+    },
+    {
+      "id": 6,
+      "name": "imported-arrival-prefilter-amap",
+      "prompt": "我现有行程写明10.1 23:55到大连，10.4 13:20坐大连湾轮渡且11:30必须离店；Day2银沙滩+莲花山日落，Day3东港威尼斯水城。朋友推荐大连海纳百川国际雕塑公园。先查离酒店及Day2/Day3路线多远、适合哪天，先别改。如果你有高德MCP就用它。",
+      "expected_output": "触发 IMPORT/AUDIT + CANDIDATE EVALUATION；把10.1 23:55抵达作为已知事实，不重新询问且在候选日期预筛阶段排除Day1白天；把10.4赶船窗口作为hard deadline/derived unavailable window，不把普通城市停留本身误标为hard booking；若宿主存在可用高德/AMap MCP，优先用其POI+路线/矩阵能力取得酒店→候选及Day2/Day3插入绕路数据并标注高德 MCP 实查日期；若工具不可用则降级腾讯位置服务/浏览器/unknown，禁止编距离；天气适配只有在核验场地暴露类型后才判断；用户确认前不修改任何Day。",
+      "files": [
+        "existing itinerary state"
+      ]
     }
   ],
   "trigger_tests": [
